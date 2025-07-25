@@ -175,70 +175,129 @@ export const useAuthStore = create<AuthState>()(
 
       signIn: async (email: string, password: string) => {
         set({ loading: true })
-        
         try {
           console.log('🔐 Attempting sign in for:', email)
-          
           // Check if OTP was verified for this email
           const otpData = otpStorage[email]
           if (!otpData || !otpData.verified) {
             throw new Error('Please verify your email with OTP first')
           }
-
           // Sign in with Supabase
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
           })
-
           if (error) {
             console.error('Supabase sign in error:', error)
             throw new Error(error.message)
           }
-
           if (!data.user) {
             throw new Error('Sign in failed - no user data returned')
           }
-
           console.log('✅ Supabase sign in successful')
-
-          // Fetch user data from database
-          const { data: userData, error: userError } = await supabase
+          // Ensure user exists in public.users
+          let { data: userData, error: userError } = await supabase
             .from('users')
             .select('*')
             .eq('id', data.user.id)
             .single()
-
-          if (userError) {
+          if (userError && userError.code === 'PGRST116') { // Not found
+            // Insert into public.users
+            const { error: userInsertError } = await supabase
+              .from('users')
+              .insert({
+                id: data.user.id,
+                email: data.user.email,
+                full_name: data.user.user_metadata?.full_name || '',
+                role: 'student', // Set default role
+              })
+            if (userInsertError) {
+              console.error('User insert error:', userInsertError)
+              throw new Error('Failed to create user record')
+            }
+            // Refetch
+            const userFetch = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', data.user.id)
+              .single()
+            userData = userFetch.data
+          } else if (userError && userError.code !== 'PGRST116') {
             console.error('User fetch error:', userError)
             throw new Error('Failed to fetch user data')
           }
-
-          // Fetch student data
-          const { data: studentData, error: studentError } = await supabase
+          // Ensure student exists in students
+          let { data: studentData, error: studentError } = await supabase
             .from('students')
             .select('*')
             .eq('user_id', data.user.id)
             .single()
-
-          if (studentError) {
-            console.log('⚠️ Student data not found, user may need to complete profile')
+          if (studentError && studentError.code === 'PGRST116') { // Not found
+            // Insert into students
+            const fullName = data.user.user_metadata?.full_name || ''
+            const [firstName, ...lastNameArr] = fullName.split(' ')
+            const lastName = lastNameArr.join(' ')
+            const { error: studentInsertError } = await supabase
+              .from('students')
+              .insert({
+                user_id: data.user.id,
+                student_id: data.user.email,
+                first_name: firstName || 'Student',
+                last_name: lastName || 'User',
+                total_study_hours: 0,
+                courses_completed: 0,
+                courses_in_progress: 0,
+                challenges_solved: 0,
+                quizzes_passed: 0,
+                current_streak_days: 0,
+                longest_streak_days: 0,
+                average_quiz_score: 0,
+                average_challenge_score: 0,
+                skill_level: 'beginner',
+                preferred_learning_style: 'visual',
+                preferred_difficulty: 'beginner',
+                learning_goals: [],
+                interests: [],
+                total_points: 0,
+                badges_earned: 0,
+                certificates_earned: 0,
+                daily_study_goal_minutes: 60,
+                weekly_study_goal_hours: 10,
+                last_active_date: new Date().toISOString().split('T')[0],
+                registration_date: new Date().toISOString().split('T')[0],
+                learning_analytics: {},
+                skill_assessments: {},
+                time_analytics: {},
+                engagement_metrics: {},
+                is_active: true,
+                enrollment_status: 'active'
+              })
+            if (studentInsertError) {
+              console.error('Student insert error:', studentInsertError)
+              throw new Error('Failed to create student profile')
+            }
+            // Refetch
+            const studentFetch = await supabase
+              .from('students')
+              .select('*')
+              .eq('user_id', data.user.id)
+              .single()
+            studentData = studentFetch.data
+          } else if (studentError && studentError.code !== 'PGRST116') {
+            console.error('Student fetch error:', studentError)
+            throw new Error('Failed to fetch student data')
           }
-
           // Clear OTP data
           delete otpStorage[email]
           localStorage.removeItem(`otp_${email}`)
-
           set({ 
             user: userData, 
             student: studentData,
             loading: false 
           })
-
           console.log('✅ Sign in completed successfully')
           toast.success('Welcome back!')
-
-        } catch (error: any) {
+        } catch (error) {
           set({ loading: false })
           console.error('❌ Sign in error:', error)
           throw error
@@ -247,16 +306,8 @@ export const useAuthStore = create<AuthState>()(
 
       signUp: async (email: string, password: string, fullName: string) => {
         set({ loading: true })
-        
         try {
           console.log('📝 Attempting sign up for:', email)
-          
-          // Check if OTP was verified for this email
-          const otpData = otpStorage[email]
-          if (!otpData || !otpData.verified) {
-            throw new Error('Please verify your email with OTP first')
-          }
-
           // Sign up with Supabase
           const { data, error } = await supabase.auth.signUp({
             email,
@@ -267,85 +318,17 @@ export const useAuthStore = create<AuthState>()(
               }
             }
           })
-
           if (error) {
             console.error('Supabase sign up error:', error)
             throw new Error(error.message)
           }
-
           if (!data.user) {
             throw new Error('Sign up failed - no user data returned')
           }
-
           console.log('✅ Supabase sign up successful')
-
-          // Create user record in database
-          const { error: userInsertError } = await supabase
-            .from('users')
-            .insert({
-              id: data.user.id,
-              email: data.user.email!,
-              full_name: fullName,
-              role: 'student',
-              is_active: true
-            })
-
-          if (userInsertError) {
-            console.error('User insert error:', userInsertError)
-            throw new Error('Failed to create user profile')
-          }
-
-          // Create student record
-          const { data: studentData, error: studentInsertError } = await supabase
-            .from('students')
-            .insert({
-              user_id: data.user.id,
-              first_name: fullName.split(' ')[0] || 'Student',
-              last_name: fullName.split(' ').slice(1).join(' ') || 'User',
-              total_study_hours: 0,
-              courses_completed: 0,
-              courses_in_progress: 0,
-              challenges_solved: 0,
-              quizzes_passed: 0,
-              current_streak_days: 0,
-              longest_streak_days: 0,
-              average_quiz_score: 0,
-              average_challenge_score: 0,
-              skill_level: 'beginner',
-              preferred_learning_style: 'visual',
-              preferred_difficulty: 'beginner',
-              learning_goals: [],
-              interests: [],
-              total_points: 0,
-              badges_earned: 0,
-              certificates_earned: 0,
-              daily_study_goal_minutes: 60,
-              weekly_study_goal_hours: 10,
-              last_active_date: new Date().toISOString().split('T')[0],
-              registration_date: new Date().toISOString().split('T')[0],
-              learning_analytics: {},
-              skill_assessments: {},
-              time_analytics: {},
-              engagement_metrics: {},
-              is_active: true,
-              enrollment_status: 'active'
-            })
-            .select()
-            .single()
-
-          if (studentInsertError) {
-            console.error('Student insert error:', studentInsertError)
-            throw new Error('Failed to create student profile')
-          }
-
-          // Clear OTP data
-          delete otpStorage[email]
-          localStorage.removeItem(`otp_${email}`)
-
           set({ loading: false })
-          console.log('✅ Sign up completed successfully')
-          toast.success('Account created successfully!')
-
+          // No DB insert here; will be handled on first sign in
+          toast.success('Account created! Please check your email to confirm and then sign in.')
         } catch (error: any) {
           set({ loading: false })
           console.error('❌ Sign up error:', error)
