@@ -17,6 +17,19 @@ import { HTMLContentRenderer } from '../content/HTMLContentRenderer'
 import { getDifficultyColor } from '../../lib/utils'
 import { useProgress } from '../../hooks/useProgress'
 
+interface CodeExample {
+  title?: string
+  language?: string
+  code?: string
+  explanation?: string
+}
+
+interface LearningSection {
+  title?: string
+  content?: string
+  code_examples?: CodeExample[]
+}
+
 interface TextTutorial {
   id: string
   title: string
@@ -36,7 +49,7 @@ interface TextTutorial {
   conclusion: string
   fun_facts: string
   memes_humor: string
-  learning_sections: any[]
+  learning_sections: LearningSection[]
   is_published: boolean
   created_by: string
   created_at: string
@@ -74,15 +87,24 @@ export function TextTutorialComponent({
   const displayProgress = trackedCompleted ? 100 : (trackedProgress > 0 ? trackedProgress : progress)
   const isCompletedFinal = trackedCompleted || isCompleted
 
-  const sections = [
+  const mainSections = [
     { title: 'Introduction', content: tutorial.introduction, icon: BookOpenIcon },
     { title: 'Main Content', content: tutorial.main_content, icon: AcademicCapIcon },
+  ].filter(section => section.content)
+
+  const conclusionSections = [
     { title: 'Conclusion', content: tutorial.conclusion, icon: CheckCircleIcon },
     ...(tutorial.fun_facts ? [{ title: 'Fun Facts', content: tutorial.fun_facts, icon: LightBulbIcon }] : []),
   ].filter(section => section.content)
 
-  // Track reading progress
+  // Get the direct update function for immediate updates
+  const { updateProgressDirect } = useProgress(tutorial.id, 'text_tutorial')
+
+  // Track reading progress with throttling
   React.useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+    let lastProgress = 0
+
     const handleScroll = () => {
       const scrollTop = window.pageYOffset
       const docHeight = document.documentElement.scrollHeight - window.innerHeight
@@ -90,22 +112,36 @@ export function TextTutorialComponent({
       
       const newProgress = Math.min(100, Math.max(0, scrollPercent))
       
-      // Update progress using the hook
-      updateProgress(newProgress)
-      
-      // Call the onProgress callback for backward compatibility
-      if (onProgress) {
-        onProgress(newProgress)
+      // Only update if progress changed significantly (more than 5%)
+      if (Math.abs(newProgress - lastProgress) >= 5) {
+        lastProgress = newProgress
+        
+        // Throttle updates to every 2 seconds
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          // Update progress using the hook
+          updateProgress(newProgress)
+          
+          // Call the onProgress callback for backward compatibility
+          if (onProgress) {
+            onProgress(newProgress)
+          }
+        }, 2000)
       }
       
       // Auto-complete when user reaches 90% of the content
       if (newProgress >= 90 && !isCompletedFinal) {
+        // Use immediate update for completion
+        updateProgressDirect(newProgress, false, true)
         handleComplete()
       }
     }
 
     window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      clearTimeout(timeoutId)
+    }
   }, [updateProgress, onProgress, isCompletedFinal])
 
   const handleComplete = async () => {
@@ -225,9 +261,203 @@ export function TextTutorialComponent({
 
 
 
-      {/* Tutorial Content Sections */}
+      {/* Main Tutorial Content Sections */}
       <div className="space-y-8">
-        {sections.map((section, index) => (
+        {mainSections.map((section, index) => (
+          <motion.div
+            key={section.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 + index * 0.1 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <section.icon className="h-5 w-5" />
+                  <span>{section.title}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HTMLContentRenderer content={section.content} />
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Learning Sections - GeeksforGeeks/W3Schools Style */}
+      {tutorial.learning_sections && tutorial.learning_sections.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="mb-8"
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AcademicCapIcon className="h-5 w-5" />
+                <span>Tutorial Sections</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-12">
+                {tutorial.learning_sections.map((section, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                    className="border-b border-gray-200 pb-8 last:border-b-0"
+                  >
+                    {/* Section Header */}
+                    {section.title && (
+                      <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                          {index + 1}. {section.title}
+                        </h2>
+                        <div className="w-20 h-1 bg-gradient-to-r from-[#094d57] to-[#f1872c] rounded"></div>
+                      </div>
+                    )}
+                    
+                    {/* Theory/Concept Section */}
+                    {section.content && (
+                      <div className="mb-8">
+                        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                          <div className="flex items-center mb-4">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                              <BookOpenIcon className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900">Theory & Concepts</h3>
+                          </div>
+                          <div className="text-gray-700 leading-relaxed text-base">
+                            <HTMLContentRenderer content={section.content} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Code Examples Section */}
+                    {section.code_examples && section.code_examples.length > 0 && (
+                      <div className="space-y-6">
+                        <div className="flex items-center mb-4">
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                            <CodeBracketIcon className="h-4 w-4 text-green-600" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-900">Examples & Practice</h3>
+                        </div>
+                        
+                        {section.code_examples.map((example: CodeExample, exampleIndex: number) => (
+                          <motion.div
+                            key={exampleIndex}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: exampleIndex * 0.1 }}
+                            className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden"
+                          >
+                            {/* Example Header */}
+                            <div className="bg-gray-100 px-4 py-3 border-b border-gray-200">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  {example.title && (
+                                    <h4 className="font-semibold text-gray-900">{example.title}</h4>
+                                  )}
+                                  {example.language && (
+                                    <Badge variant="info" className="text-xs">
+                                      {example.language}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-sm text-gray-500">Example {exampleIndex + 1}</span>
+                              </div>
+                            </div>
+                            
+                            {/* Code Block */}
+                            {example.code && (
+                              <div className="bg-gray-900 p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-gray-400 uppercase tracking-wide">Code</span>
+                                  <button className="text-xs text-gray-400 hover:text-white transition-colors">
+                                    Copy
+                                  </button>
+                                </div>
+                                <pre className="text-green-400 text-sm leading-relaxed overflow-x-auto">
+                                  <code>{example.code}</code>
+                                </pre>
+                              </div>
+                            )}
+                            
+                            {/* Explanation */}
+                            {example.explanation && (
+                              <div className="bg-white p-4 border-t border-gray-200">
+                                <div className="flex items-start space-x-3">
+                                  <div className="w-2 h-2 bg-[#f1872c] rounded-full mt-2 flex-shrink-0"></div>
+                                  <div className="flex-1">
+                                    <h5 className="font-medium text-gray-900 mb-2">Explanation:</h5>
+                                    <div className="text-gray-700 leading-relaxed text-sm">
+                                      <HTMLContentRenderer content={example.explanation} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Quick Summary */}
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <LightBulbIcon className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-blue-900">Key Takeaway</span>
+                      </div>
+                      <p className="text-blue-800 text-sm">
+                        {section.title ? `In this section, you learned about ${section.title.toLowerCase()}. ` : ''}
+                        {section.content ? 'Review the concepts and practice with the examples above.' : 'Practice with the examples above to reinforce your understanding.'}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              
+              {/* Tutorial Navigation */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <CheckCircleIcon className="h-5 w-5 text-green-600" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Tutorial Progress</h4>
+                      <p className="text-sm text-gray-600">
+                        {tutorial.learning_sections.length} sections completed • Ready for next topic
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button variant="secondary" size="sm">
+                      <BookOpenIcon className="h-4 w-4 mr-1" />
+                      Review
+                    </Button>
+                    <Button variant="primary" size="sm">
+                      Next Topic
+                      <AcademicCapIcon className="h-4 w-5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Conclusion Sections */}
+      <div className="space-y-8">
+        {conclusionSections.map((section, index) => (
           <motion.div
             key={section.title}
             initial={{ opacity: 0, y: 20 }}

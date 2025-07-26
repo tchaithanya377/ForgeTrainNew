@@ -21,6 +21,8 @@ import { LogsPage } from './pages/admin/LogsPage'
 import { CourseAnalyticsPage } from './pages/admin/CourseAnalyticsPage'
 import { QuizDetailsPage } from './pages/QuizDetailsPage'
 import { QuizTakingPage } from './pages/QuizTakingPage'
+import { TextTutorialsPage } from './pages/TextTutorialsPage'
+import { TextTutorialPage } from './pages/TextTutorialPage'
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -186,6 +188,24 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <QuizTakingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tutorials"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <TextTutorialsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tutorial/:tutorialId"
+                element={
+                  <ProtectedRoute>
+                    <TextTutorialPage />
                   </ProtectedRoute>
                 }
               />

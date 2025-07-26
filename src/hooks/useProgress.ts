@@ -14,6 +14,7 @@ export function useProgress(contentId: string, contentType: string) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [localProgress, setLocalProgress] = useState(0)
+  const [updateTimeout, setUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Fetch current progress from database
   const { data: progressData, isLoading } = useQuery({
@@ -39,8 +40,31 @@ export function useProgress(contentId: string, contentType: string) {
     enabled: !!user?.id && !!contentId,
   })
 
-  // Update progress in database
-  const updateProgress = useCallback(async (progress: number, completed: boolean = false) => {
+  // Update progress in database with debouncing
+  const updateProgress = useCallback(async (progress: number, completed: boolean = false, immediate: boolean = false) => {
+    if (!user?.id || !contentId) return
+
+    // Clear existing timeout
+    if (updateTimeout) {
+      clearTimeout(updateTimeout)
+    }
+
+    // If immediate update is requested (for completion), update right away
+    if (immediate || completed) {
+      await performProgressUpdate(progress, completed)
+      return
+    }
+
+    // Debounce regular progress updates
+    const timeoutId = setTimeout(() => {
+      performProgressUpdate(progress, completed)
+    }, 1000) // 1 second debounce
+
+    setUpdateTimeout(timeoutId)
+  }, [user?.id, contentId, contentType, queryClient, updateTimeout])
+
+  // Actual progress update function
+  const performProgressUpdate = useCallback(async (progress: number, completed: boolean = false) => {
     if (!user?.id || !contentId) return
 
     try {
@@ -48,9 +72,6 @@ export function useProgress(contentId: string, contentType: string) {
       const roundedProgress = Math.round(Math.max(0, Math.min(100, progress)))
       
       const updateData: any = {
-        user_id: user.id,
-        content_id: contentId,
-        content_type: contentType,
         progress_percentage: roundedProgress,
         score: roundedProgress,
         updated_at: new Date().toISOString()
@@ -61,11 +82,33 @@ export function useProgress(contentId: string, contentType: string) {
         updateData.completed_at = new Date().toISOString()
       }
 
-      const { error } = await supabase
+      // First, try to update existing record
+      let { data: updateResult, error } = await supabase
         .from('user_progress')
-        .upsert(updateData)
+        .update(updateData)
+        .eq('user_id', user.id)
+        .eq('content_id', contentId)
+        .eq('content_type', contentType)
+        .select()
 
-      if (error) {
+      // If no rows were updated (no existing record), insert a new record
+      if (!updateResult || updateResult.length === 0) {
+        const insertData = {
+          user_id: user.id,
+          content_id: contentId,
+          content_type: contentType,
+          ...updateData
+        }
+
+        const { error: insertError } = await supabase
+          .from('user_progress')
+          .insert(insertData)
+
+        if (insertError) {
+          console.error('Error inserting progress:', insertError)
+          return
+        }
+      } else if (error) {
         console.error('Error updating progress:', error)
         return
       }
@@ -82,7 +125,7 @@ export function useProgress(contentId: string, contentType: string) {
 
   // Mark as completed
   const markCompleted = useCallback(async () => {
-    await updateProgress(100, true)
+    await updateProgress(100, true, true) // Immediate update for completion
     setLocalProgress(100)
   }, [updateProgress])
 
@@ -98,6 +141,15 @@ export function useProgress(contentId: string, contentType: string) {
       setLocalProgress(progressData.progress_percentage || 0)
     }
   }, [progressData])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout)
+      }
+    }
+  }, [updateTimeout])
 
   return {
     progress: progressData?.progress_percentage || localProgress,
