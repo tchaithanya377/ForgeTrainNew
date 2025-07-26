@@ -12,7 +12,6 @@ import {
   XMarkIcon,
   DocumentTextIcon,
   AcademicCapIcon,
-  DocumentTextIcon as TextTutorialIcon,
 } from '@heroicons/react/24/outline'
 import { useAppStore } from '../../stores/appStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -21,7 +20,7 @@ import { cn } from '../../lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Courses', href: '/courses', icon: BookOpenIcon },
-  { name: 'Tutorials', href: '/tutorials', icon: TextTutorialIcon },
+  { name: 'Text Tutorials', href: '/text-tutorials', icon: DocumentTextIcon },
   { name: 'Challenges', href: '/challenges', icon: CodeBracketIcon },
   { name: 'Quizzes', href: '/quizzes', icon: QuestionMarkCircleIcon },
   { name: 'Progress', href: '/progress', icon: ChartBarIcon },

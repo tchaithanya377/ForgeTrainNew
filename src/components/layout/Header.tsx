@@ -72,6 +72,12 @@ export function Header() {
                 Courses
               </Link>
               <Link
+                to="/text-tutorials"
+                className="text-gray-700 hover:text-[#094d57] transition-colors font-medium px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-[#094d57]"
+              >
+                Text 
+              </Link>
+              <Link
                 to="/challenges"
                 className="text-gray-700 hover:text-[#094d57] transition-colors font-medium px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-[#094d57]"
               >
