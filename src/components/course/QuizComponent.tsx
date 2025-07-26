@@ -1,6 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   QuestionMarkCircleIcon,
   ClockIcon,
@@ -11,6 +12,8 @@ import {
   ShieldCheckIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -51,6 +54,69 @@ export function QuizComponent({
 }: QuizComponentProps) {
   const navigate = useNavigate()
   const { courseId } = useParams()
+  const { user } = useAuthStore()
+
+  // Fetch user's quiz attempts
+  const { data: quizAttempts } = useQuery({
+    queryKey: ['quiz-attempts', quiz.id, user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+
+      const { data, error } = await supabase
+        .from('quiz_attempts')
+        .select('*')
+        .eq('quiz_id', quiz.id)
+        .eq('user_id', user.id)
+        .order('completed_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching quiz attempts:', error)
+        return []
+      }
+
+      console.log('Quiz attempts for quiz', quiz.id, ':', data)
+      return data || []
+    },
+    enabled: !!user?.id && !!quiz.id,
+  })
+
+  // Fetch quiz questions count
+  const { data: quizQuestions } = useQuery({
+    queryKey: ['quiz-questions-count', quiz.id],
+    queryFn: async () => {
+      const { data, error, count } = await supabase
+        .from('quiz_questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('quiz_id', quiz.id)
+
+      if (error) {
+        console.error('Error fetching quiz questions count:', error)
+        return 0
+      }
+
+      console.log('Quiz questions count for quiz', quiz.id, ':', count)
+      return count || 0
+    },
+    enabled: !!quiz.id,
+  })
+
+  // Get the latest attempt and completion status
+  const latestAttempt = quizAttempts?.[0]
+  const hasPassed = latestAttempt?.passed || false
+  const userScore = latestAttempt?.score
+
+  // Debug logging
+  console.log('Quiz Component Debug:', {
+    quizId: quiz.id,
+    quizTitle: quiz.title,
+    hasAttempts: quizAttempts?.length > 0,
+    latestAttempt,
+    hasPassed,
+    userScore,
+    questionsCount: quizQuestions,
+    isCompleted,
+    lastScore
+  })
 
   const handleStartQuiz = () => {
     // Start quiz directly in taking mode
@@ -105,7 +171,7 @@ export function QuizComponent({
                 </Badge>
                 <Badge className="bg-white/20 text-white border-white/30">
                   <DocumentTextIcon className="h-4 w-4 mr-1" />
-                  {quiz.questions_count || 0} questions
+                  {quizQuestions || 0} questions
                 </Badge>
                 <Badge className="bg-white/20 text-white border-white/30">
                   <TrophyIcon className="h-4 w-4 mr-1" />
@@ -124,15 +190,15 @@ export function QuizComponent({
         transition={{ duration: 0.6, delay: 0.1 }}
         className="mb-8"
       >
-        {isCompleted && lastScore !== undefined ? (
+        {hasPassed && userScore !== undefined ? (
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    lastScore >= quiz.passing_score ? 'bg-green-100' : 'bg-red-100'
+                    userScore >= quiz.passing_score ? 'bg-green-100' : 'bg-red-100'
                   }`}>
-                    {lastScore >= quiz.passing_score ? (
+                    {userScore >= quiz.passing_score ? (
                       <CheckCircleIcon className="h-6 w-6 text-green-600" />
                     ) : (
                       <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
@@ -140,18 +206,23 @@ export function QuizComponent({
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      Quiz {lastScore >= quiz.passing_score ? 'Passed' : 'Not Passed'}
+                      Quiz {userScore >= quiz.passing_score ? 'Passed' : 'Not Passed'}
                     </h3>
                     <p className="text-gray-600">
-                      Your score: {lastScore}% (Required: {quiz.passing_score}%)
+                      Your score: {userScore}% (Required: {quiz.passing_score}%)
                     </p>
+                    {latestAttempt && (
+                      <p className="text-sm text-gray-500">
+                        Completed: {new Date(latestAttempt.completed_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex space-x-3">
                   <Button variant="outline" onClick={() => navigate(`/quiz/${quiz.id}`)}>
                     View Details
                   </Button>
-                  {lastScore < quiz.passing_score && (
+                  {userScore < quiz.passing_score && (
                     <Button variant="primary" onClick={handleRetakeQuiz}>
                       Retake Quiz
                     </Button>
@@ -201,7 +272,7 @@ export function QuizComponent({
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <DocumentTextIcon className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                <p className="text-lg font-bold text-gray-900">{quiz.questions_count || 0}</p>
+                <p className="text-lg font-bold text-gray-900">{quizQuestions || 0}</p>
                 <p className="text-sm text-gray-600">Questions</p>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">

@@ -41,7 +41,7 @@ export function usePerformanceMonitoring() {
   React.useEffect(() => {
     // Monitor bundle size in development
     if (import.meta.env.DEV) {
-      console.log('Performance monitoring enabled in development mode')
+      // console.log('Performance monitoring enabled in development mode')
     }
   }, [])
 }

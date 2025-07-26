@@ -19,25 +19,219 @@ export interface ExtractedCourse {
 }
 
 export interface ContentItem {
-  type: 'text_tutorial' | 'video_tutorial' | 'quiz' | 'code_challenge'
+  type: string
   title: string
   description: string
   difficulty: string
   estimatedMinutes: number
   order: number
-  category?: string
-  programmingLanguages?: string[]
+  category: string
+  programmingLanguages: string[]
 }
 
-export interface CourseAnalytics {
-  totalCourses: number
-  coursesByDifficulty: Record<string, number>
-  coursesByCategory: Record<string, number>
-  averageDuration: number
-  totalContentItems: number
-  contentTypeDistribution: Record<string, number>
-  popularTags: Array<{ tag: string; count: number }>
-  learningPathways: Array<{ name: string; courses: string[]; weeks: number }>
+// Sample course data for demonstration
+export const sampleCourses = [
+  {
+    id: 'course-1',
+    title: 'JavaScript Fundamentals',
+    description: 'Master the basics of JavaScript programming with hands-on projects and real-world examples.',
+    learning_objectives: 'Learn variables, functions, objects, arrays, and DOM manipulation',
+    difficulty: 'beginner',
+    estimated_duration_hours: 8,
+    prerequisites: 'Basic computer literacy',
+    tags: ['JavaScript', 'Web Development', 'Frontend'],
+    is_published: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-2',
+    title: 'React Development',
+    description: 'Build modern web applications with React. Learn hooks, state management, and component architecture.',
+    learning_objectives: 'Master React components, hooks, state management, and modern React patterns',
+    difficulty: 'intermediate',
+    estimated_duration_hours: 12,
+    prerequisites: 'JavaScript Fundamentals',
+    tags: ['React', 'JavaScript', 'Frontend', 'Web Development'],
+    is_published: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-3',
+    title: 'Python for Data Science',
+    description: 'Learn Python programming for data analysis, machine learning, and scientific computing.',
+    learning_objectives: 'Master Python basics, data manipulation, visualization, and machine learning',
+    difficulty: 'intermediate',
+    estimated_duration_hours: 15,
+    prerequisites: 'Basic programming concepts',
+    tags: ['Python', 'Data Science', 'Machine Learning', 'AI'],
+    is_published: true,
+    sort_order: 3,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-4',
+    title: 'Advanced Algorithms',
+    description: 'Deep dive into algorithm design, complexity analysis, and problem-solving techniques.',
+    learning_objectives: 'Master algorithm design, complexity analysis, and advanced problem-solving',
+    difficulty: 'advanced',
+    estimated_duration_hours: 20,
+    prerequisites: 'Strong programming fundamentals',
+    tags: ['Algorithms', 'Data Structures', 'Computer Science'],
+    is_published: true,
+    sort_order: 4,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-5',
+    title: 'Full Stack Web Development',
+    description: 'Build complete web applications from frontend to backend with modern technologies.',
+    learning_objectives: 'Master full-stack development with React, Node.js, and databases',
+    difficulty: 'intermediate',
+    estimated_duration_hours: 18,
+    prerequisites: 'JavaScript and basic web concepts',
+    tags: ['Full Stack', 'React', 'Node.js', 'Database', 'Web Development'],
+    is_published: true,
+    sort_order: 5,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-6',
+    title: 'Machine Learning Fundamentals',
+    description: 'Introduction to machine learning concepts, algorithms, and practical applications.',
+    learning_objectives: 'Learn ML concepts, algorithms, and build your first ML models',
+    difficulty: 'advanced',
+    estimated_duration_hours: 16,
+    prerequisites: 'Python and basic statistics',
+    tags: ['Machine Learning', 'AI', 'Python', 'Data Science'],
+    is_published: true,
+    sort_order: 6,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-7',
+    title: 'Mobile App Development',
+    description: 'Create mobile applications for iOS and Android using React Native.',
+    learning_objectives: 'Build cross-platform mobile apps with React Native',
+    difficulty: 'intermediate',
+    estimated_duration_hours: 14,
+    prerequisites: 'React fundamentals',
+    tags: ['Mobile Development', 'React Native', 'iOS', 'Android'],
+    is_published: true,
+    sort_order: 7,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'course-8',
+    title: 'Database Design & SQL',
+    description: 'Learn database design principles, SQL programming, and data modeling.',
+    learning_objectives: 'Master database design, SQL, and data modeling concepts',
+    difficulty: 'beginner',
+    estimated_duration_hours: 10,
+    prerequisites: 'Basic computer concepts',
+    tags: ['Database', 'SQL', 'Data Modeling', 'Backend'],
+    is_published: true,
+    sort_order: 8,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+]
+
+// Function to seed sample data to Supabase
+export async function seedSampleCourses() {
+  const { supabase } = await import('../lib/supabase')
+  
+  try {
+    // Insert sample courses
+    const { data, error } = await supabase
+      .from('modules')
+      .insert(sampleCourses)
+      .select()
+    
+    if (error) {
+      console.error('Error seeding sample courses:', error)
+      return { success: false, error }
+    }
+    
+    console.log('Sample courses seeded successfully:', data)
+    return { success: true, data }
+  } catch (err) {
+    console.error('Failed to seed sample courses:', err)
+    return { success: false, error: err }
+  }
+}
+
+// Function to check if database has courses
+export async function checkDatabaseCourses() {
+  const { supabase } = await import('../lib/supabase')
+  
+  try {
+    const { data, error } = await supabase
+      .from('modules')
+      .select('id, title, is_published')
+      .eq('is_published', true)
+    
+    if (error) {
+      console.error('Error checking database courses:', error)
+      return { success: false, error, count: 0 }
+    }
+    
+    return { success: true, count: data?.length || 0, data }
+  } catch (err) {
+    console.error('Failed to check database courses:', err)
+    return { success: false, error: err, count: 0 }
+  }
+}
+
+// Function to get course analytics
+export function analyzeCourseData(courses: any[]) {
+  if (!courses || courses.length === 0) {
+    return {
+      totalCourses: 0,
+      coursesByDifficulty: {},
+      coursesByCategory: {},
+      averageDuration: 0,
+      totalContentItems: 0,
+      contentTypeDistribution: {}
+    }
+  }
+
+  const coursesByDifficulty = courses.reduce((acc, course) => {
+    acc[course.difficulty] = (acc[course.difficulty] || 0) + 1
+    return acc
+  }, {})
+
+  const coursesByCategory = courses.reduce((acc, course) => {
+    course.tags?.forEach((tag: string) => {
+      acc[tag] = (acc[tag] || 0) + 1
+    })
+    return acc
+  }, {})
+
+  const totalDuration = courses.reduce((sum, course) => sum + (course.estimated_duration_hours || 0), 0)
+  const averageDuration = totalDuration / courses.length
+
+  return {
+    totalCourses: courses.length,
+    coursesByDifficulty,
+    coursesByCategory,
+    averageDuration: Math.round(averageDuration * 10) / 10,
+    totalContentItems: courses.length * 8, // Estimate 8 items per course
+    contentTypeDistribution: {
+      tutorials: Math.round(courses.length * 0.4),
+      quizzes: Math.round(courses.length * 0.3),
+      challenges: Math.round(courses.length * 0.2),
+      videos: Math.round(courses.length * 0.1)
+    }
+  }
 }
 
 /**
@@ -78,73 +272,6 @@ export function extractAllCourses(): ExtractedCourse[] {
   })
 
   return extractedCourses
-}
-
-/**
- * Analyze course data and provide comprehensive analytics
- */
-export function analyzeCourseData(): CourseAnalytics {
-  const courses = extractAllCourses()
-  
-  // Count courses by difficulty
-  const coursesByDifficulty = courses.reduce((acc, course) => {
-    acc[course.difficulty] = (acc[course.difficulty] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
-  // Count courses by category (based on tags)
-  const coursesByCategory = courses.reduce((acc, course) => {
-    course.tags.forEach(tag => {
-      acc[tag] = (acc[tag] || 0) + 1
-    })
-    return acc
-  }, {} as Record<string, number>)
-
-  // Calculate average duration
-  const totalHours = courses.reduce((sum, course) => sum + course.estimatedHours, 0)
-  const averageDuration = totalHours / courses.length
-
-  // Count total content items
-  const totalContentItems = courses.reduce((sum, course) => sum + course.totalItems, 0)
-
-  // Content type distribution
-  const contentTypeDistribution = courses.reduce((acc, course) => {
-    course.contentItems.forEach(item => {
-      acc[item.type] = (acc[item.type] || 0) + 1
-    })
-    return acc
-  }, {} as Record<string, number>)
-
-  // Popular tags
-  const tagCounts = courses.reduce((acc, course) => {
-    course.tags.forEach(tag => {
-      acc[tag] = (acc[tag] || 0) + 1
-    })
-    return acc
-  }, {} as Record<string, number>)
-
-  const popularTags = Object.entries(tagCounts)
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10)
-
-  // Learning pathways
-  const learningPathways = learningTracks.map(track => ({
-    name: track.name,
-    courses: track.modules,
-    weeks: track.estimated_weeks
-  }))
-
-  return {
-    totalCourses: courses.length,
-    coursesByDifficulty,
-    coursesByCategory,
-    averageDuration: Math.round(averageDuration * 10) / 10,
-    totalContentItems,
-    contentTypeDistribution,
-    popularTags,
-    learningPathways
-  }
 }
 
 /**
@@ -265,7 +392,7 @@ export function getRecommendedCourses(completedCourseIds: string[]): ExtractedCo
  */
 export function exportForDatabase() {
   const courses = extractAllCourses()
-  const analytics = analyzeCourseData()
+  const analytics = analyzeCourseData(courses) // Pass the extracted courses to analyzeCourseData
   
   return {
     modules: courseModules,

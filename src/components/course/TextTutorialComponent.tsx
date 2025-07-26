@@ -15,6 +15,7 @@ import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { HTMLContentRenderer } from '../content/HTMLContentRenderer'
 import { getDifficultyColor } from '../../lib/utils'
+import { useProgress } from '../../hooks/useProgress'
 
 interface TextTutorial {
   id: string
@@ -59,8 +60,19 @@ export function TextTutorialComponent({
   progress = 0 
 }: TextTutorialComponentProps) {
   const [currentSection, setCurrentSection] = React.useState(0)
-  const [readingProgress, setReadingProgress] = React.useState(0)
   const [startTime] = React.useState(Date.now())
+
+  // Use the progress hook for better tracking
+  const { 
+    progress: trackedProgress, 
+    isCompleted: trackedCompleted, 
+    updateProgress, 
+    markCompleted 
+  } = useProgress(tutorial.id, 'text_tutorial')
+
+  // Use tracked progress or fall back to props
+  const displayProgress = trackedCompleted ? 100 : (trackedProgress > 0 ? trackedProgress : progress)
+  const isCompletedFinal = trackedCompleted || isCompleted
 
   const sections = [
     { title: 'Introduction', content: tutorial.introduction, icon: BookOpenIcon },
@@ -76,20 +88,33 @@ export function TextTutorialComponent({
       const docHeight = document.documentElement.scrollHeight - window.innerHeight
       const scrollPercent = (scrollTop / docHeight) * 100
       
-      setReadingProgress(Math.min(100, Math.max(0, scrollPercent)))
+      const newProgress = Math.min(100, Math.max(0, scrollPercent))
       
+      // Update progress using the hook
+      updateProgress(newProgress)
+      
+      // Call the onProgress callback for backward compatibility
       if (onProgress) {
-        onProgress(scrollPercent)
+        onProgress(newProgress)
+      }
+      
+      // Auto-complete when user reaches 90% of the content
+      if (newProgress >= 90 && !isCompletedFinal) {
+        handleComplete()
       }
     }
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [onProgress])
+  }, [updateProgress, onProgress, isCompletedFinal])
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const timeSpent = Math.round((Date.now() - startTime) / 1000 / 60) // minutes
-    console.log(`Tutorial completed in ${timeSpent} minutes`)
+    
+    // Mark as completed using the hook
+    await markCompleted()
+    
+    // Call the onComplete callback
     onComplete?.()
   }
 
@@ -150,12 +175,12 @@ export function TextTutorialComponent({
         <div className="bg-white/70 backdrop-blur-xl border border-white/20 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">Reading Progress</span>
-            <span className="text-sm text-gray-600">{Math.round(readingProgress)}%</span>
+            <span className="text-sm text-gray-600">{Math.round(displayProgress)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <motion.div
               className="bg-gradient-to-r from-[#094d57] to-[#f1872c] h-2 rounded-full"
-              style={{ width: `${readingProgress}%` }}
+              style={{ width: `${displayProgress}%` }}
               transition={{ duration: 0.3 }}
             />
           </div>
@@ -197,6 +222,8 @@ export function TextTutorialComponent({
           </CardContent>
         </Card>
       </motion.div>
+
+
 
       {/* Tutorial Content Sections */}
       <div className="space-y-8">
@@ -296,13 +323,13 @@ export function TextTutorialComponent({
               </div>
               
               <div className="flex space-x-3">
-                {!isCompleted && readingProgress >= 80 && (
+                {!isCompletedFinal && displayProgress >= 80 && (
                   <Button variant="primary" onClick={handleComplete}>
                     <CheckCircleIcon className="h-4 w-4 mr-2" />
                     Mark as Complete
                   </Button>
                 )}
-                {isCompleted && (
+                {isCompletedFinal && (
                   <Badge variant="success" className="px-4 py-2">
                     <CheckCircleIcon className="h-4 w-4 mr-2" />
                     Completed

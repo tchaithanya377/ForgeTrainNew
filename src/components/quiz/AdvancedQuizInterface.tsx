@@ -373,6 +373,9 @@ export function AdvancedQuizInterface({
     if (!startTime) return
     const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
     
+    // Deactivate security monitoring
+    setSecurityActive(false)
+    
     const finalSecurityData = {
       ...securityData,
       traditionalFlags: traditionalSecurityFlags,
@@ -389,6 +392,9 @@ export function AdvancedQuizInterface({
     const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
     localStorage.removeItem(`quiz_progress_${quiz.id}`)
     
+    // Deactivate security monitoring
+    setSecurityActive(false)
+    
     const finalSecurityData = {
       ...securityData,
       traditionalFlags: traditionalSecurityFlags,
@@ -399,6 +405,14 @@ export function AdvancedQuizInterface({
     
     onSubmit(answers, timeSpent, finalSecurityData)
   }
+
+  // Cleanup effect for component unmount
+  React.useEffect(() => {
+    return () => {
+      // Ensure security monitoring is deactivated on unmount
+      setSecurityActive(false)
+    }
+  }, [])
 
   const toggleBookmark = (questionId: string) => {
     setBookmarkedQuestions(prev => {

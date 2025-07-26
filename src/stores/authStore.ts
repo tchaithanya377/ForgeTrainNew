@@ -85,8 +85,6 @@ const generateOTP = () => {
 // Send real email using Supabase Edge Function
 const sendRealEmail = async (email: string, otp: string, type: 'signin' | 'signup') => {
   try {
-    console.log(`📧 Sending real email to ${email} with OTP: ${otp}`);
-
     // Call Supabase Edge Function with actual project ref
     const response = await fetch('https://gwqcpnoxbflbvdvpvnyj.supabase.co/functions/v1/send-otp-email', {
       method: 'POST',
@@ -104,7 +102,6 @@ const sendRealEmail = async (email: string, otp: string, type: 'signin' | 'signu
     }
 
     const result = await response.json();
-    console.log('✅ Email sent successfully:', result);
     return result;
 
   } catch (error) {
@@ -123,8 +120,6 @@ export const useAuthStore = create<AuthState>()(
 
       initialize: async () => {
         try {
-          console.log('🔄 Initializing auth store...')
-          
           // Check if user is already signed in with Supabase
           const { data: { session }, error } = await supabase.auth.getSession()
           
@@ -135,8 +130,6 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (session?.user) {
-            console.log('✅ Found existing session for:', session.user.email)
-            
             // Fetch user data from database
             const { data: userData, error: userError } = await supabase
               .from('users')
@@ -157,14 +150,11 @@ export const useAuthStore = create<AuthState>()(
                 student: studentData,
                 initialized: true 
               })
-              console.log('✅ User data loaded from database')
             } else {
-              console.log('⚠️ User not found in database, signing out')
               await supabase.auth.signOut()
               set({ initialized: true })
             }
           } else {
-            console.log('ℹ️ No active session found')
             set({ initialized: true })
           }
         } catch (error) {
@@ -176,7 +166,6 @@ export const useAuthStore = create<AuthState>()(
       signIn: async (email: string, password: string) => {
         set({ loading: true })
         try {
-          console.log('🔐 Attempting sign in for:', email)
           // Check if OTP was verified for this email
           const otpData = otpStorage[email]
           if (!otpData || !otpData.verified) {
@@ -194,7 +183,6 @@ export const useAuthStore = create<AuthState>()(
           if (!data.user) {
             throw new Error('Sign in failed - no user data returned')
           }
-          console.log('✅ Supabase sign in successful')
           // Ensure user exists in public.users
           let { data: userData, error: userError } = await supabase
             .from('users')
@@ -295,7 +283,6 @@ export const useAuthStore = create<AuthState>()(
             student: studentData,
             loading: false 
           })
-          console.log('✅ Sign in completed successfully')
           toast.success('Welcome back!')
         } catch (error) {
           set({ loading: false })
@@ -307,7 +294,6 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email: string, password: string, fullName: string) => {
         set({ loading: true })
         try {
-          console.log('📝 Attempting sign up for:', email)
           // Sign up with Supabase
           const { data, error } = await supabase.auth.signUp({
             email,
@@ -325,7 +311,6 @@ export const useAuthStore = create<AuthState>()(
           if (!data.user) {
             throw new Error('Sign up failed - no user data returned')
           }
-          console.log('✅ Supabase sign up successful')
           set({ loading: false })
           // No DB insert here; will be handled on first sign in
           toast.success('Account created! Please check your email to confirm and then sign in.')
@@ -340,8 +325,6 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true })
         
         try {
-          console.log(`📧 Sending OTP to ${email}`)
-          
           const otp = generateOTP()
           const expires = Date.now() + 5 * 60 * 1000 // 5 minutes
           
@@ -357,12 +340,10 @@ export const useAuthStore = create<AuthState>()(
           try {
             // Try to send real email
             await sendRealEmail(email, otp, 'signin')
-            console.log('✅ Real email sent successfully')
             toast.success(`OTP sent to ${email}`)
           } catch (emailError) {
             console.warn('❌ Real email failed, using fallback:', emailError)
             // Fallback: Show OTP in console and toast for demo
-            console.log(`📧 DEMO OTP for ${email}: ${otp}`)
             toast.success(`OTP generated for ${email}. Demo OTP: ${otp}`)
           }
 
@@ -378,8 +359,6 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true })
         
         try {
-          console.log(`🔍 Verifying OTP for ${email}: ${otp}`)
-          
           // Check memory storage first
           let storedOTP = otpStorage[email]
           
@@ -423,7 +402,6 @@ export const useAuthStore = create<AuthState>()(
           }))
           
           set({ loading: false })
-          console.log('✅ OTP verified successfully')
           toast.success('OTP verified successfully!')
         } catch (error: any) {
           set({ loading: false })

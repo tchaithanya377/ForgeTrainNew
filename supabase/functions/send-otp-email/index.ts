@@ -133,7 +133,6 @@ serve(async (req) => {
       const errorText = await emailResponse.text();
       console.error('Resend API error:', errorText);
       // Fallback: Log OTP for demo purposes
-      console.log(`📧 EMAIL FALLBACK - OTP for ${email}: ${otp}`);
       return new Response(JSON.stringify({
         success: true,
         message: 'OTP sent successfully (demo mode)',
@@ -148,7 +147,6 @@ serve(async (req) => {
       });
     }
     const result = await emailResponse.json();
-    console.log('Email sent successfully:', result);
     return new Response(JSON.stringify({
       success: true,
       message: 'OTP sent to your email successfully',

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ClockIcon,
   ShieldCheckIcon,
@@ -66,6 +66,7 @@ export function QuizTakingPage() {
   const location = useLocation()
   const { user } = useAuthStore()
   const { logQuizCompletion, logError } = useLogger()
+  const queryClient = useQueryClient()
 
   // Get return path from navigation state
   const returnTo = location.state?.returnTo || '/quizzes'
@@ -99,7 +100,6 @@ export function QuizTakingPage() {
   const { data: questions, isLoading: questionsLoading } = useQuery({
     queryKey: ['quiz-questions', quizId],
     queryFn: async () => {
-      console.log('Fetching quiz questions for quiz:', quizId)
       const { data, error } = await supabase
         .from('quiz_questions')
         .select('*')
@@ -107,7 +107,6 @@ export function QuizTakingPage() {
         .order('order_index', { ascending: true })
 
       if (error) throw error
-      console.log('Quiz questions fetched:', data?.length || 0)
       return data as QuizQuestion[]
     },
     enabled: !!quizId,
@@ -116,6 +115,8 @@ export function QuizTakingPage() {
   // Submit quiz mutation
   const submitQuizMutation = useMutation({
     mutationFn: async ({ answers, timeSpent, securityData }: { answers: Record<string, any>, timeSpent: number, securityData: any }) => {
+      console.log('Quiz submission started:', { quizId, answers, timeSpent, securityData })
+      
       // Calculate score
       let correctAnswers = 0
       let totalPoints = 0
@@ -132,6 +133,60 @@ export function QuizTakingPage() {
 
       const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0
       const passed = scorePercentage >= (quiz?.passing_score || 70)
+
+      console.log('Quiz calculation results:', {
+        correctAnswers,
+        totalPoints,
+        earnedPoints,
+        scorePercentage,
+        passed,
+        passingScore: quiz?.passing_score
+      })
+
+      // Save quiz attempt to Supabase
+      const { error: attemptError } = await supabase
+        .from('quiz_attempts')
+        .insert({
+          quiz_id: quizId!,
+          user_id: user?.id,
+          score: scorePercentage,
+          passed: passed,
+          time_spent_minutes: timeSpent,
+          answers: answers,
+          security_data: securityData,
+          completed_at: new Date().toISOString()
+        })
+
+      if (attemptError) {
+        console.error('Failed to save quiz attempt:', attemptError)
+        throw new Error('Failed to save quiz results')
+      }
+
+      console.log('Quiz attempt saved successfully')
+
+      // If passed, update user progress for the module/lesson
+      if (passed && moduleId && lessonId) {
+        console.log('Updating user progress for passed quiz:', { moduleId, lessonId, scorePercentage })
+        
+        const { error: progressError } = await supabase
+          .from('user_progress')
+          .upsert({
+            user_id: user?.id,
+            content_type: 'quiz',
+            content_id: lessonId,
+            progress_percentage: 100,
+            completed: true,
+            score: scorePercentage,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+
+        if (progressError) {
+          console.error('Failed to update user progress:', progressError)
+        } else {
+          console.log('User progress updated successfully')
+        }
+      }
 
       // Log quiz completion
       await logQuizCompletion(quizId!, scorePercentage, timeSpent)
@@ -151,6 +206,12 @@ export function QuizTakingPage() {
       setQuizResults(result)
       setQuizCompleted(true)
       setShowResults(true)
+      
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries(['user-progress', moduleId])
+      queryClient.invalidateQueries(['quiz-attempts', quizId])
+      queryClient.invalidateQueries(['module', moduleId])
+      
       if (result.passed) {
         toast.success(`Congratulations! You scored ${result.score}%`)
       } else {
@@ -168,8 +229,45 @@ export function QuizTakingPage() {
   }
 
   const handleQuizExit = () => {
+    // Ensure any cleanup is done before navigating
     navigate(returnTo)
   }
+
+  // Cleanup effect for component unmount
+  React.useEffect(() => {
+    return () => {
+      // Cleanup any remaining resources when component unmounts
+      console.log('QuizTakingPage cleanup: Component unmounting')
+    }
+  }, [])
+
+  // Handle browser back button and page unload
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (quizStarted && !quizCompleted) {
+        e.preventDefault()
+        e.returnValue = 'Are you sure you want to leave? Your quiz progress may be lost.'
+        return e.returnValue
+      }
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (quizStarted && !quizCompleted) {
+        const confirmExit = window.confirm('Are you sure you want to leave? Your quiz progress may be lost.')
+        if (!confirmExit) {
+          window.history.pushState(null, '', window.location.pathname)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [quizStarted, quizCompleted])
 
   if (quizLoading || questionsLoading) {
     return (

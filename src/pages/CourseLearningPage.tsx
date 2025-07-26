@@ -1,7 +1,7 @@
 import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -22,6 +22,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useLogger } from '../hooks/useLogger'
 import { LessonRenderer, getLessonTypeIcon, getLessonTypeColor, getLessonTypeName } from '../components/course/LessonRenderer'
+import { ProgressSummary } from '../components/course/ProgressSummary'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -43,6 +44,7 @@ export function CourseLearningPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { logFeatureUsage } = useLogger()
+  const queryClient = useQueryClient()
   
   const [currentItemIndex, setCurrentItemIndex] = React.useState(0)
 
@@ -80,6 +82,174 @@ export function CourseLearningPage() {
 
   const currentItem = moduleItems?.[currentItemIndex]
 
+  // Fetch all lesson content for titles
+  const { data: allLessonContent } = useQuery({
+    queryKey: ['all-lesson-content', moduleItems],
+    queryFn: async () => {
+      if (!moduleItems || moduleItems.length === 0) return []
+
+      const lessonContentPromises = moduleItems.map(async (item) => {
+        let tableName = ''
+        switch (item.item_type) {
+          case 'text_tutorial':
+            tableName = 'text_tutorials'
+            break
+          case 'video_tutorial':
+            tableName = 'video_tutorials'
+            break
+          case 'quiz':
+            tableName = 'quizzes'
+            break
+          case 'code_challenge':
+            tableName = 'code_challenges'
+            break
+          default:
+            return null
+        }
+
+        // Use appropriate column names for each table type
+        let selectColumns = ''
+        switch (item.item_type) {
+          case 'text_tutorial':
+          case 'video_tutorial':
+            selectColumns = 'id, title, subtitle'
+            break
+          case 'quiz':
+          case 'code_challenge':
+            selectColumns = 'id, title, description'
+            break
+          default:
+            selectColumns = 'id, title'
+        }
+
+        const { data, error } = await supabase
+          .from(tableName)
+          .select(selectColumns)
+          .eq('id', item.item_id)
+          .single()
+
+        if (error) {
+          console.error(`Error fetching ${item.item_type}:`, error)
+          return null
+        }
+
+        return {
+          itemId: item.id,
+          content: data
+        }
+      })
+
+      const results = await Promise.all(lessonContentPromises)
+      return results.filter(Boolean)
+    },
+    enabled: !!moduleItems && moduleItems.length > 0,
+  })
+
+  // Fetch user progress for this module
+  const { data: userProgress } = useQuery({
+    queryKey: ['user-progress', courseId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !courseId) return []
+
+      // Get all lesson IDs for this module
+      const lessonIds = moduleItems?.map(item => item.item_id) || []
+
+      if (lessonIds.length === 0) return []
+
+      const { data, error } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('content_id', lessonIds)
+
+      if (error) {
+        console.error('Error fetching user progress:', error)
+        return []
+      }
+
+      return data || []
+    },
+    enabled: !!user?.id && !!courseId && !!moduleItems,
+  })
+
+  // Fetch quiz attempts for this module
+  const { data: quizAttempts } = useQuery({
+    queryKey: ['quiz-attempts', courseId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !courseId) return []
+
+      // Get all quiz IDs for this module
+      const quizItems = moduleItems?.filter(item => item.item_type === 'quiz') || []
+      const quizIds = quizItems.map(item => item.item_id)
+
+      if (quizIds.length === 0) return []
+
+      const { data, error } = await supabase
+        .from('quiz_attempts')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('quiz_id', quizIds)
+        .order('completed_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching quiz attempts:', error)
+        return []
+      }
+
+      return data || []
+    },
+    enabled: !!user?.id && !!courseId && !!moduleItems,
+  })
+
+  // Create a map of lesson completion status
+  const lessonCompletionStatus = React.useMemo(() => {
+    const status: Record<string, { completed: boolean; score?: number; lastAttempt?: any }> = {}
+    
+    if (!moduleItems) return status
+
+    moduleItems.forEach(item => {
+      if (item.item_type === 'quiz') {
+        // Check quiz attempts
+        const attempts = quizAttempts?.filter(attempt => attempt.quiz_id === item.item_id) || []
+        const lastAttempt = attempts[0]
+        
+        status[item.id] = {
+          completed: lastAttempt?.passed || false,
+          score: lastAttempt?.score,
+          lastAttempt
+        }
+      } else {
+        // Check user progress for other lesson types
+        const progress = userProgress?.find(p => p.content_id === item.item_id)
+        status[item.id] = {
+          completed: progress?.completed || false,
+          score: progress?.score
+        }
+      }
+    })
+
+    return status
+  }, [moduleItems, userProgress, quizAttempts])
+
+  // Create a map of lesson titles for easy lookup
+  const lessonTitles = React.useMemo(() => {
+    if (!allLessonContent) return {}
+    
+    const titles: Record<string, { title: string; subtitle?: string }> = {}
+    allLessonContent.forEach((lesson) => {
+      if (lesson) {
+        const itemType = moduleItems?.find(item => item.id === lesson.itemId)?.item_type
+        titles[lesson.itemId] = {
+          title: lesson.content.title || getLessonTypeName(itemType || ''),
+          subtitle: itemType === 'text_tutorial' || itemType === 'video_tutorial' 
+            ? lesson.content.subtitle || ''
+            : lesson.content.description || ''
+        }
+      }
+    })
+    return titles
+  }, [allLessonContent, moduleItems])
+
   // Fetch lesson content based on current item
   const { data: lessonContent, isLoading: contentLoading } = useQuery({
     queryKey: ['lesson-content', currentItem?.item_type, currentItem?.item_id],
@@ -116,6 +286,53 @@ export function CourseLearningPage() {
     enabled: !!currentItem,
   })
 
+  // Calculate overall progress based on completed lessons
+  const overallProgress = React.useMemo(() => {
+    if (!moduleItems || moduleItems.length === 0) return { percentage: 0, completed: 0, total: 0 }
+    
+    const completedLessons = moduleItems.filter(item => {
+      const status = lessonCompletionStatus[item.id]
+      return status?.completed || false
+    }).length
+    
+    const percentage = Math.round((completedLessons / moduleItems.length) * 100)
+    
+    return {
+      percentage,
+      completed: completedLessons,
+      total: moduleItems.length
+    }
+  }, [moduleItems, lessonCompletionStatus])
+
+  // Calculate current lesson progress
+  const currentLessonProgress = React.useMemo(() => {
+    if (!currentItem) return 0
+    
+    const status = lessonCompletionStatus[currentItem.id]
+    if (status?.completed) return 100
+    
+    // For ongoing lessons, calculate based on progress
+    return status?.score || 0
+  }, [currentItem, lessonCompletionStatus])
+
+  // Create progress items for the summary component
+  const progressItems = React.useMemo(() => {
+    if (!moduleItems || !lessonTitles) return []
+    
+    return moduleItems.map(item => {
+      const status = lessonCompletionStatus[item.id]
+      return {
+        id: item.id,
+        title: lessonTitles[item.id]?.title || getLessonTypeName(item.item_type),
+        type: item.item_type,
+        completed: status?.completed || false,
+        score: status?.score,
+        estimatedDuration: item.estimated_duration_minutes,
+        isRequired: item.is_required
+      }
+    })
+  }, [moduleItems, lessonTitles, lessonCompletionStatus])
+
   React.useEffect(() => {
     if (module) {
       logFeatureUsage('course_learning_page_view', {
@@ -134,14 +351,80 @@ export function CourseLearningPage() {
     setCurrentItemIndex(Math.min((moduleItems?.length || 1) - 1, currentItemIndex + 1))
   }
 
-  const handleLessonComplete = () => {
-    // Mark lesson as completed and move to next
-    console.log('Lesson completed:', currentItem?.id)
-    handleNext()
+  const handleLessonComplete = async () => {
+    if (!currentItem || !user?.id) return
+    
+    try {
+      // Save completion to database
+      const { error } = await supabase
+        .from('user_progress')
+        .upsert({
+          user_id: user.id,
+          content_type: currentItem.item_type,
+          content_id: currentItem.item_id,
+          progress_percentage: 100,
+          completed: true,
+          score: 100,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+
+      if (error) {
+        console.error('Error saving lesson completion:', error)
+        return
+      }
+
+      // Invalidate queries to refresh progress
+      queryClient.invalidateQueries(['user-progress', courseId, user.id])
+      queryClient.invalidateQueries(['module-items', courseId])
+      
+      // Log completion
+      logFeatureUsage('lesson_completed', {
+        course_id: courseId,
+        lesson_id: currentItem.item_id,
+        lesson_type: currentItem.item_type,
+        user_id: user.id,
+      })
+
+      // Move to next lesson if available
+      if (currentItemIndex < (moduleItems?.length || 1) - 1) {
+        handleNext()
+      }
+    } catch (error) {
+      console.error('Error completing lesson:', error)
+    }
   }
 
-  const handleLessonProgress = (progress: number) => {
-    console.log('Lesson progress:', progress)
+  const handleLessonProgress = async (progress: number) => {
+    if (!currentItem || !user?.id) return
+    
+    try {
+      // Ensure progress is an integer between 0 and 100
+      const roundedProgress = Math.round(Math.max(0, Math.min(100, progress)))
+      
+      // Save progress to database
+      const { error } = await supabase
+        .from('user_progress')
+        .upsert({
+          user_id: user.id,
+          content_type: currentItem.item_type,
+          content_id: currentItem.item_id,
+          progress_percentage: roundedProgress,
+          completed: roundedProgress >= 100,
+          score: roundedProgress,
+          updated_at: new Date().toISOString()
+        })
+
+      if (error) {
+        console.error('Error saving lesson progress:', error)
+        return
+      }
+
+      // Invalidate queries to refresh progress
+      queryClient.invalidateQueries(['user-progress', courseId, user.id])
+    } catch (error) {
+      console.error('Error saving progress:', error)
+    }
   }
 
   if (moduleLoading || itemsLoading) {
@@ -188,19 +471,19 @@ export function CourseLearningPage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{module.title}</h1>
                 <p className="text-gray-600">
-                  {currentItem ? getLessonTypeName(currentItem.item_type) : 'Lesson'} {currentItemIndex + 1} of {moduleItems?.length || 0}
+                  {currentItem ? (lessonTitles[currentItem.id]?.title || getLessonTypeName(currentItem.item_type)) : 'Lesson'} {currentItemIndex + 1} of {moduleItems?.length || 0}
                 </p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-600">
-                Progress: {Math.round(((currentItemIndex + 1) / (moduleItems?.length || 1)) * 100)}%
+                Progress: {overallProgress.percentage}%
               </div>
               <div className="w-32 bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-[#094d57] h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentItemIndex + 1) / (moduleItems?.length || 1)) * 100}%` }}
+                  style={{ width: `${overallProgress.percentage}%` }}
                 />
               </div>
             </div>
@@ -214,21 +497,13 @@ export function CourseLearningPage() {
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Course Content</h2>
             
-            {/* Course Progress */}
+            {/* Progress Summary */}
             <div className="mb-6">
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>Overall Progress</span>
-                <span>{Math.round(((currentItemIndex + 1) / (moduleItems?.length || 1)) * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-[#094d57] h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentItemIndex + 1) / (moduleItems?.length || 1)) * 100}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {currentItemIndex + 1} of {moduleItems?.length || 0} lessons completed
-              </p>
+              <ProgressSummary
+                items={progressItems}
+                overallProgress={overallProgress}
+                currentItemId={currentItem?.id}
+              />
             </div>
 
             {/* Lesson List */}
@@ -237,7 +512,7 @@ export function CourseLearningPage() {
                 const Icon = getLessonTypeIcon(item.item_type)
                 const typeColor = getLessonTypeColor(item.item_type)
                 const isActive = index === currentItemIndex
-                const isCompleted = false // TODO: Get from user progress
+                const isCompleted = lessonCompletionStatus[item.id]?.completed || false
                 
                 return (
                   <motion.button
@@ -257,7 +532,7 @@ export function CourseLearningPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">
-                        {getLessonTypeName(item.item_type)}
+                        {lessonTitles[item.id]?.title || getLessonTypeName(item.item_type)}
                       </p>
                       <p className={cn(
                         'text-sm truncate',
@@ -307,7 +582,7 @@ export function CourseLearningPage() {
                         </div>
                         <div>
                           <h2 className="text-xl font-semibold text-gray-900">
-                            {getLessonTypeName(currentItem.item_type)}
+                            {lessonTitles[currentItem.id]?.title || getLessonTypeName(currentItem.item_type)}
                           </h2>
                           <p className="text-gray-600">
                             {currentItem.estimated_duration_minutes} minutes • {currentItem.is_required ? 'Required' : 'Optional'}
@@ -365,8 +640,8 @@ export function CourseLearningPage() {
                         lessonData={lessonContent}
                         onComplete={handleLessonComplete}
                         onProgress={handleLessonProgress}
-                        isCompleted={false}
-                        progress={0}
+                        isCompleted={lessonCompletionStatus[currentItem.id]?.completed || false}
+                        progress={currentLessonProgress}
                       />
                     )}
                   </div>

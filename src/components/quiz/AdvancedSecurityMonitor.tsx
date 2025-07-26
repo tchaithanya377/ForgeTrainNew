@@ -97,8 +97,19 @@ export function AdvancedSecurityMonitor({
       cleanupSecuritySystems()
     }
 
-    return () => cleanupSecuritySystems()
+    return () => {
+      // Always cleanup on unmount
+      cleanupSecuritySystems()
+    }
   }, [isActive])
+
+  // Additional cleanup effect for component unmount
+  React.useEffect(() => {
+    return () => {
+      // Ensure cleanup happens when component unmounts
+      cleanupSecuritySystems()
+    }
+  }, [])
 
   const initializeSecuritySystems = async () => {
     try {
@@ -333,19 +344,52 @@ export function AdvancedSecurityMonitor({
   }
 
   const cleanupSecuritySystems = () => {
+    // Stop all media tracks
     if (stream) {
-      stream.getTracks().forEach(track => track.stop())
+      stream.getTracks().forEach(track => {
+        track.stop()
+        console.log('Stopped media track:', track.kind)
+      })
+      setStream(null)
     }
     
+    // Close audio context
     if (audioContextRef.current) {
-      audioContextRef.current.close()
+      audioContextRef.current.close().catch(error => {
+        console.warn('Error closing audio context:', error)
+      })
+      audioContextRef.current = null
     }
     
+    // Stop media recorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop()
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (error) {
+        console.warn('Error stopping media recorder:', error)
+      }
+      mediaRecorderRef.current = null
     }
     
+    // Reset all state
     setFaceDetectionActive(false)
+    setAudioLevel(0)
+    setVoiceDetected(false)
+    setSuspiciousAudio(false)
+    setSuspiciousObjects([])
+    setDeviceDetected(false)
+    setViolations([])
+    
+    // Update security status
+    setSecurityStatus({
+      faceDetection: 'inactive',
+      audioMonitoring: 'inactive',
+      objectDetection: 'inactive',
+      behaviorAnalysis: 'inactive',
+      overallRisk: 'low'
+    })
+
+    console.log('Security systems cleaned up successfully')
   }
 
   const getStatusIcon = (status: string) => {

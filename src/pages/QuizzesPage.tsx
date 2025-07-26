@@ -55,8 +55,6 @@ export function QuizzesPage() {
   const { data: quizzes, isLoading, error, refetch } = useQuery({
     queryKey: ['published-quizzes'],
     queryFn: async () => {
-      console.log('Fetching published quizzes from Supabase...')
-      
       const { data, error } = await supabase
         .from('quizzes')
         .select(`
@@ -78,8 +76,6 @@ export function QuizzesPage() {
         console.error('Error fetching quizzes:', error)
         throw error
       }
-
-      console.log('Fetched quizzes:', data?.length || 0)
       
       // Get question count for each quiz
       const quizzesWithCounts = await Promise.all(
