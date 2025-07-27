@@ -26,6 +26,7 @@ import { TextTutorialPage } from './pages/TextTutorialPage'
 import { ChallengesPage } from './pages/ChallengesPage'
 import { ChallengeDetailPage } from './pages/ChallengeDetailPage'
 import { ChallengeSolvingPage } from './pages/ChallengeSolvingPage'
+import { ChatPage } from './pages/ChatPage'
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -235,6 +236,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ChallengeSolvingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <ChatPage />
                   </ProtectedRoute>
                 }
               />

@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   DocumentTextIcon,
   AcademicCapIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { useAppStore } from '../../stores/appStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Text Tutorials', href: '/tutorials', icon: DocumentTextIcon },
   { name: 'Challenges', href: '/challenges', icon: CodeBracketIcon },
   { name: 'Quizzes', href: '/quizzes', icon: QuestionMarkCircleIcon },
+  { name: 'AI Chat', href: '/chat', icon: ChatBubbleLeftRightIcon },
   { name: 'Progress', href: '/progress', icon: ChartBarIcon },
   { name: 'Achievements', href: '/achievements', icon: TrophyIcon },
   { name: 'Settings', href: '/settings', icon: CogIcon },
