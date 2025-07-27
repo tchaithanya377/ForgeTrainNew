@@ -20,7 +20,7 @@ import { cn } from '../../lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Courses', href: '/courses', icon: BookOpenIcon },
-  { name: 'Text Tutorials', href: '/text-tutorials', icon: DocumentTextIcon },
+  { name: 'Text Tutorials', href: '/tutorials', icon: DocumentTextIcon },
   { name: 'Challenges', href: '/challenges', icon: CodeBracketIcon },
   { name: 'Quizzes', href: '/quizzes', icon: QuestionMarkCircleIcon },
   { name: 'Progress', href: '/progress', icon: ChartBarIcon },

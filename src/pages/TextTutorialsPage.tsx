@@ -23,8 +23,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import toast from 'react-hot-toast'
 import { getDifficultyColor } from '../lib/utils'
 import type { TextTutorial } from '../lib/supabase'
+import { seedTestTextTutorials } from '../utils/seedTestTextTutorials'
 
 const difficulties = ['All', 'Beginner', 'Intermediate', 'Advanced']
 
@@ -136,6 +138,17 @@ export function TextTutorialsPage() {
   const handleSortChange = (sort: string) => {
     setSortBy(sort)
     logFeatureUsage('sort_text_tutorials', { sortBy: sort })
+  }
+
+  const handleSeedData = async () => {
+    try {
+      await seedTestTextTutorials()
+      toast.success('Test text tutorials seeded successfully!')
+      refetch()
+    } catch (error) {
+      toast.error('Failed to seed test data')
+      console.error('Error seeding test data:', error)
+    }
   }
 
   const estimatedReadTime = (tutorial: TextTutorial) => {
@@ -256,6 +269,15 @@ export function TextTutorialsPage() {
                 <option value="duration">Duration</option>
               </select>
             </div>
+
+            {/* Seed Data Button (Development Only) */}
+            <Button
+              onClick={handleSeedData}
+              variant="secondary"
+              className="whitespace-nowrap"
+            >
+              Seed Test Data
+            </Button>
           </div>
         </motion.div>
 

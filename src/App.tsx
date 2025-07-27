@@ -23,13 +23,16 @@ import { QuizDetailsPage } from './pages/QuizDetailsPage'
 import { QuizTakingPage } from './pages/QuizTakingPage'
 import { TextTutorialsPage } from './pages/TextTutorialsPage'
 import { TextTutorialPage } from './pages/TextTutorialPage'
+import { ChallengesPage } from './pages/ChallengesPage'
+import { ChallengeDetailPage } from './pages/ChallengeDetailPage'
+import { ChallengeSolvingPage } from './pages/ChallengeSolvingPage'
 
 // Create a query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30 * 60 * 1000, // 30 minutes - aggressive caching
-      cacheTime: 60 * 60 * 1000, // 1 hour
+      gcTime: 60 * 60 * 1000, // 1 hour
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: true,
@@ -206,6 +209,32 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TextTutorialPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/challenges"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ChallengesPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/challenge/:challengeId"
+                element={
+                  <ProtectedRoute>
+                    <ChallengeDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/challenge/:challengeId/solve"
+                element={
+                  <ProtectedRoute>
+                    <ChallengeSolvingPage />
                   </ProtectedRoute>
                 }
               />
