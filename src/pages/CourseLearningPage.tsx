@@ -234,7 +234,6 @@ export function CourseLearningPage() {
     },
     enabled: !!user?.id && !!courseId && !!moduleItems,
   })
-
   // Create a map of lesson completion status
   const lessonCompletionStatus = React.useMemo(() => {
     const status: Record<string, { completed: boolean; score?: number; lastAttempt?: any }> = {}

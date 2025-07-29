@@ -21,11 +21,17 @@ import {
   ListBulletIcon,
   CheckIcon,
   XCircleIcon,
+  LockClosedIcon,
+  ComputerDesktopIcon,
+  DocumentDuplicateIcon,
+  CursorArrowRaysIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
+import { AdvancedSecurityMonitor } from './AdvancedSecurityMonitor'
 
 interface QuizQuestion {
   id: string
@@ -74,15 +80,13 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = React.useState(true)
 
-  // Security monitoring
-  const [securityFlags, setSecurityFlags] = React.useState({
-    tabSwitches: 0,
-    copyAttempts: 0,
-    pasteAttempts: 0,
-    rightClicks: 0,
-    suspiciousActivity: 0,
-  })
+  // Advanced security monitoring
+  const [securityEvents, setSecurityEvents] = React.useState<any[]>([])
+  const [isCheatingDetected, setIsCheatingDetected] = React.useState(false)
+  const [isLocked, setIsLocked] = React.useState(false)
+  const [isTerminated, setIsTerminated] = React.useState(false)
   const [warnings, setWarnings] = React.useState<string[]>([])
+  const [securitySessionId, setSecuritySessionId] = React.useState<string | null>(null)
 
   // Drag and drop state
   const [draggedItem, setDraggedItem] = React.useState<string | null>(null)
@@ -95,7 +99,7 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
 
   // Timer effect
   React.useEffect(() => {
-    if (!quizStarted || isPaused || timeRemaining <= 0) return
+    if (!quizStarted || isPaused || timeRemaining <= 0 || isTerminated) return
 
     const timer = setInterval(() => {
       setTimeRemaining(prev => {
@@ -121,92 +125,46 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
     return () => clearInterval(autoSaveTimer)
   }, [answers, autoSaveEnabled, quizStarted])
 
-  // Security monitoring
-  React.useEffect(() => {
-    if (!quizStarted) return
+  // Advanced security monitoring handlers
+    const handleSecurityViolation = (event: any) => {
+    setSecurityEvents(prev => [...prev, event])
+    setIsCheatingDetected(true)
+    addWarning(`Security violation: ${event.details}`)
 
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setSecurityFlags(prev => ({ ...prev, tabSwitches: prev.tabSwitches + 1 }))
-        addWarning('Tab switching detected! Please stay on this page.')
-      }
+    if (event.severity === 'critical') {
+      setIsLocked(true)
+      handleAutoSubmit()
     }
+  }
 
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault()
-      setSecurityFlags(prev => ({ ...prev, rightClicks: prev.rightClicks + 1 }))
-      addWarning('Right-click is disabled during the quiz.')
+  const handleAutoSubmit = () => {
+    if (!startTime) return
+    const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
+    localStorage.removeItem(`quiz_progress_${quiz.id}`)
+    onSubmit(answers, timeSpent, { securityEvents, isCheatingDetected: true })
+  }
+
+  const handleImmediateTermination = (reason: string) => {
+    setIsTerminated(true)
+    setIsLocked(true)
+    setIsCheatingDetected(true)
+    addWarning(`IMMEDIATE TERMINATION: ${reason}`)
+    
+    // Force immediate submission
+    if (startTime) {
+      const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
+      localStorage.removeItem(`quiz_progress_${quiz.id}`)
+      onSubmit(answers, timeSpent, { 
+        securityEvents, 
+        isCheatingDetected: true, 
+        terminated: true,
+        terminationReason: reason 
+      })
     }
+  }
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'c' || e.key === 'C') {
-          e.preventDefault()
-          setSecurityFlags(prev => ({ ...prev, copyAttempts: prev.copyAttempts + 1 }))
-          addWarning('Copy action blocked!')
-        }
-        if (e.key === 'v' || e.key === 'V') {
-          e.preventDefault()
-          setSecurityFlags(prev => ({ ...prev, pasteAttempts: prev.pasteAttempts + 1 }))
-          addWarning('Paste action blocked!')
-        }
-      }
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
-        e.preventDefault()
-        setSecurityFlags(prev => ({ ...prev, suspiciousActivity: prev.suspiciousActivity + 1 }))
-        addWarning('Developer tools access blocked!')
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    document.addEventListener('contextmenu', handleContextMenu)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      document.removeEventListener('contextmenu', handleContextMenu)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [quizStarted])
-
-  // Add fullscreen logic
-  React.useEffect(() => {
-    if (quizStarted) {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if ((elem as any).webkitRequestFullscreen) {
-        (elem as any).webkitRequestFullscreen();
-      } else if ((elem as any).msRequestFullscreen) {
-        (elem as any).msRequestFullscreen();
-      }
-      const handleFullscreenChange = () => {
-        if (!document.fullscreenElement) {
-          // If user exits fullscreen, force it back
-          if (quizStarted) {
-            if (elem.requestFullscreen) {
-              elem.requestFullscreen();
-            } else if ((elem as any).webkitRequestFullscreen) {
-              (elem as any).webkitRequestFullscreen();
-            } else if ((elem as any).msRequestFullscreen) {
-              (elem as any).msRequestFullscreen();
-            }
-          }
-        }
-      };
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      return () => {
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        } else if ((document as any).msExitFullscreen) {
-          (document as any).msExitFullscreen();
-        }
-      };
-    }
-  }, [quizStarted]);
+  // Fullscreen is now handled by AdvancedSecurityMonitor
+  // Removed duplicate fullscreen logic to prevent conflicts
 
   const addWarning = (message: string) => {
     setWarnings(prev => [...prev, message])
@@ -237,9 +195,19 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
     }
   }
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
     setQuizStarted(true)
     setStartTime(new Date())
+    
+    // Start security session
+    try {
+      const { startSecuritySession } = await import('../../lib/securityUtils')
+      const sessionId = await startSecuritySession('quiz', quiz.id)
+      setSecuritySessionId(sessionId)
+    } catch (error) {
+      console.error('Failed to start security session:', error)
+      setSecuritySessionId('quiz-session-' + Date.now())
+    }
     
     // Check for saved progress
     const saved = localStorage.getItem(`quiz_progress_${quiz.id}`)
@@ -296,17 +264,11 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
     setDraggedItem(null)
   }
 
-  const handleAutoSubmit = () => {
-    if (!startTime) return
-    const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
-    onSubmit(answers, timeSpent, securityFlags)
-  }
-
   const handleSubmitQuiz = () => {
     if (!startTime) return
     const timeSpent = Math.round((Date.now() - startTime.getTime()) / 1000 / 60)
     localStorage.removeItem(`quiz_progress_${quiz.id}`)
-    onSubmit(answers, timeSpent, securityFlags)
+    onSubmit(answers, timeSpent, { securityEvents, isCheatingDetected })
   }
 
   const toggleBookmark = (questionId: string) => {
@@ -452,6 +414,43 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Advanced Security Monitor */}
+      {quizStarted && (
+        <AdvancedSecurityMonitor
+          onViolation={handleSecurityViolation}
+          onAutoSubmit={handleAutoSubmit}
+          onImmediateTermination={handleImmediateTermination}
+          isActive={quizStarted && !isLocked && !isTerminated}
+          config={{
+            enableFullscreen: true,
+            enableTabSwitchDetection: true,
+            enableCopyPasteBlocking: true,
+            enableRightClickBlocking: true,
+            enableDevToolsBlocking: true,
+            enableScreenshotDetection: true,
+            enableMultipleWindowDetection: true,
+            enableNetworkMonitoring: true,
+            enableProcessMonitoring: true,
+            enableMouseTracking: true,
+            enableKeyboardTracking: true,
+            enableScreenRecordingDetection: true,
+            enableVirtualMachineDetection: true,
+            enableDebuggerDetection: true,
+            enableAutomationDetection: true,
+            enableScreenSharingDetection: true,
+            enableRemoteAccessDetection: true,
+            enableExtensionDetection: true,
+            enableIncognitoDetection: true,
+            enableTimeManipulationDetection: true,
+            maxViolations: 3,
+            autoSubmitOnViolation: true,
+            logToServer: false, // Disabled for debugging
+            zeroTolerance: false,
+            immediateTermination: false
+          }}
+        />
+      )}
+
       {/* Security Warnings */}
       <AnimatePresence>
         {warnings.map((warning, index) => (
@@ -460,7 +459,7 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg max-w-sm"
+            className="fixed top-4 left-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg max-w-sm"
           >
             <div className="flex items-center space-x-2">
               <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
@@ -509,9 +508,19 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
               </div>
 
               {/* Security Status */}
-              <div className="flex items-center space-x-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg">
-                <ShieldCheckIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Secure</span>
+              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                isCheatingDetected 
+                  ? 'bg-red-100 text-red-700 animate-pulse' 
+                  : 'bg-green-100 text-green-700'
+              }`}>
+                {isCheatingDetected ? (
+                  <ExclamationTriangleIcon className="h-5 w-5" />
+                ) : (
+                  <ShieldCheckIcon className="h-5 w-5" />
+                )}
+                <span className="text-sm font-medium">
+                  {isCheatingDetected ? 'Cheating Detected' : 'Secure'}
+                </span>
               </div>
 
               {/* Auto-save Status */}
@@ -1039,10 +1048,20 @@ export function QuizInterface({ quiz, questions, onSubmit, onExit }: QuizInterfa
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs">
           <div className="flex items-center space-x-4">
             <span className="flex items-center space-x-1">
-              <ShieldCheckIcon className="h-3 w-3" />
-              <span>Secure Mode Active</span>
+              {isCheatingDetected ? (
+                <ExclamationTriangleIcon className="h-3 w-3" />
+              ) : (
+                <ShieldCheckIcon className="h-3 w-3" />
+              )}
+              <span>{isCheatingDetected ? 'Cheating Detected' : 'Secure Mode Active'}</span>
             </span>
-            <span>Violations: {Object.values(securityFlags).reduce((a, b) => a + b, 0)}</span>
+            <span>Violations: {securityEvents.length}</span>
+            {isLocked && (
+              <span className="flex items-center space-x-1 text-red-400">
+                <LockClosedIcon className="h-3 w-3" />
+                <span>LOCKED - Auto-submitting</span>
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-2">
             <EyeIcon className="h-3 w-3" />

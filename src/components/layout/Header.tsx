@@ -16,7 +16,11 @@ import { useAppStore } from '../../stores/appStore'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const { user, student, signOut } = useAuthStore()
   const { sidebarOpen, setSidebarOpen } = useAppStore()
   const navigate = useNavigate()
@@ -26,6 +30,14 @@ export function Header() {
     navigate('/')
   }
 
+  const handleMenuClick = () => {
+    if (onMenuClick) {
+      onMenuClick()
+    } else {
+      setSidebarOpen(!sidebarOpen)
+    }
+  }
+
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -33,15 +45,11 @@ export function Header() {
           {/* Logo and Mobile Menu */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={handleMenuClick}
               className="lg:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#094d57]"
-              aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+              aria-label="Open menu"
             >
-              {sidebarOpen ? (
-                <XMarkIcon className="h-6 w-6" />
-              ) : (
-                <Bars3Icon className="h-6 w-6" />
-              )}
+              <Bars3Icon className="h-6 w-6" />
             </button>
             <Link to={user ? "/dashboard" : "/"} className="flex items-center ml-2 lg:ml-0 gap-2">
               <motion.div

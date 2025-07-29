@@ -219,44 +219,8 @@ export function AdvancedQuizInterface({
     }
   }, [quizStarted])
 
-  // Add fullscreen logic
-  React.useEffect(() => {
-    if (quizStarted) {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if ((elem as any).webkitRequestFullscreen) {
-        (elem as any).webkitRequestFullscreen();
-      } else if ((elem as any).msRequestFullscreen) {
-        (elem as any).msRequestFullscreen();
-      }
-      const handleFullscreenChange = () => {
-        if (!document.fullscreenElement) {
-          // If user exits fullscreen, force it back
-          if (quizStarted) {
-            if (elem.requestFullscreen) {
-              elem.requestFullscreen();
-            } else if ((elem as any).webkitRequestFullscreen) {
-              (elem as any).webkitRequestFullscreen();
-            } else if ((elem as any).msRequestFullscreen) {
-              (elem as any).msRequestFullscreen();
-            }
-          }
-        }
-      };
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      return () => {
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        } else if ((document as any).msExitFullscreen) {
-          (document as any).msExitFullscreen();
-        }
-      };
-    }
-  }, [quizStarted]);
+  // Fullscreen is now handled by AdvancedSecurityMonitor
+  // Removed duplicate fullscreen logic to prevent conflicts
 
   const handleSecurityViolation = (violation: any) => {
     const newViolation = {

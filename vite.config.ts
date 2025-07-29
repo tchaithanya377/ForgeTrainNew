@@ -116,6 +116,8 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5173,
+    host: true, // Allow external connections
     hmr: {
       overlay: false, // Disable error overlay for performance
     },
@@ -128,6 +130,14 @@ export default defineConfig({
           'Origin': 'https://openrouter.ai'
         }
       }
+    },
+    headers: {
+      // Security headers to prevent browser warnings
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()',
     }
   },
 });

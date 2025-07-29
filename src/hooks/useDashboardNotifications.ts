@@ -29,7 +29,7 @@ export function useDashboardNotifications() {
   const [hasShownDailyReminder, setHasShownDailyReminder] = useState(false)
 
   // Check for new achievements based on user stats
-  const checkAchievements = () => {
+  const checkAchievements = React.useCallback(() => {
     if (!student) return
 
     setAchievements(prevAchievements => {
@@ -125,10 +125,10 @@ export function useDashboardNotifications() {
 
       return [...prevAchievements, ...newAchievements]
     })
-  }
+  }, [student])
 
   // Check for daily reminders (only show once per session)
-  const checkDailyReminders = () => {
+  const checkDailyReminders = React.useCallback(() => {
     if (!student || hasShownDailyReminder) return
 
     const today = new Date().toISOString().split('T')[0]
@@ -159,10 +159,10 @@ export function useDashboardNotifications() {
         }
       )
     }
-  }
+  }, [student, hasShownDailyReminder])
 
   // Check for milestone notifications
-  const checkMilestones = () => {
+  const checkMilestones = React.useCallback(() => {
     if (!student) return
 
     const milestones = [
@@ -203,7 +203,7 @@ export function useDashboardNotifications() {
 
       return [...newNotifications, ...prevNotifications]
     })
-  }
+  }, [student])
 
   // Fetch existing achievements from database (with error handling for missing tables)
   const { data: existingAchievements } = useQuery({
@@ -236,6 +236,7 @@ export function useDashboardNotifications() {
     },
     enabled: !!user?.id,
     retry: false, // Don't retry if table doesn't exist
+    staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
   // Fetch existing notifications from database (with error handling for missing tables)
@@ -270,29 +271,25 @@ export function useDashboardNotifications() {
     },
     enabled: !!user?.id,
     retry: false, // Don't retry if table doesn't exist
+    staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
-  // Initialize achievements and notifications
+  // Initialize achievements and notifications only when we have data
   useEffect(() => {
-    if (existingAchievements) {
+    if (existingAchievements && existingAchievements.length > 0 && achievements.length === 0) {
       setAchievements(existingAchievements)
     }
-  }, [existingAchievements])
+  }, [existingAchievements, achievements.length])
 
   useEffect(() => {
-    if (existingNotifications) {
+    if (existingNotifications && existingNotifications.length > 0 && notifications.length === 0) {
       setNotifications(existingNotifications)
     }
-  }, [existingNotifications])
+  }, [existingNotifications, notifications.length])
 
   // Check for new achievements and notifications periodically
   useEffect(() => {
     if (!student) return
-
-    // Check immediately (but only once)
-    checkAchievements()
-    checkDailyReminders()
-    checkMilestones()
 
     // Check every 5 minutes (but don't spam daily reminders)
     const interval = setInterval(() => {
@@ -301,8 +298,18 @@ export function useDashboardNotifications() {
       // Don't check daily reminders again in the interval
     }, 5 * 60 * 1000)
 
-    return () => clearInterval(interval)
-  }, [student, hasShownDailyReminder]) // Removed achievements and notifications from dependencies
+    // Also check once after a short delay to avoid immediate setState calls
+    const initialCheck = setTimeout(() => {
+      checkAchievements()
+      checkDailyReminders()
+      checkMilestones()
+    }, 1000) // Wait 1 second before first check
+
+    return () => {
+      clearTimeout(initialCheck)
+      clearInterval(interval)
+    }
+  }, [student, checkAchievements, checkDailyReminders, checkMilestones]) // Include all dependencies
 
   // Mark notification as read (with error handling for missing tables)
   const markNotificationRead = async (notificationId: string) => {

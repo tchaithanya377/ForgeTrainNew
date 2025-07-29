@@ -1,21 +1,3 @@
-import { Judge0Service } from '../lib/judge0'
-
-interface TestCase {
-  input: any
-  expected_output: any
-}
-
-interface ExecutionResult {
-  passed: boolean
-  input: any
-  expected: any
-  actual: any
-  executionTime: number
-  error?: string
-  memory?: number
-  status?: string
-}
-
 // Function name mappings for different challenges
 const functionMappings: Record<string, string[]> = {
   'two-sum': ['twoSum', 'two_sum', 'solution'],
@@ -44,264 +26,215 @@ function getFunctionNames(challengeTitle: string): string[] {
   return ['solution', 'main', 'solve']
 }
 
-// Convert test case input to string format for Judge0
-function formatInputForJudge0(input: any, language: string): string {
-  if (typeof input === 'string') {
-    return input
+// Create a safe execution environment
+function createSafeEnvironment(code: string, language: string): Function {
+  // Create a sandboxed environment
+  const sandbox = {
+    console: {
+      log: () => {},
+      error: () => {},
+      warn: () => {},
+      info: () => {}
+    },
+    setTimeout: () => {},
+    setInterval: () => {},
+    clearTimeout: () => {},
+    clearInterval: () => {},
+    fetch: () => {},
+    XMLHttpRequest: () => {},
+    WebSocket: () => {},
+    localStorage: {},
+    sessionStorage: {},
+    document: {},
+    window: {},
+    global: {},
+    process: {},
+    Buffer: {},
+    require: () => {},
+    module: {},
+    exports: {},
+    __dirname: '',
+    __filename: '',
   }
-  
-  if (Array.isArray(input)) {
-    return input.join('\n')
+
+  // Add language-specific globals
+  if (language === 'javascript') {
+    Object.assign(sandbox, {
+      Array, Object, String, Number, Boolean, Date, Math, JSON, RegExp,
+      Map, Set, WeakMap, WeakSet, Promise, Symbol, Proxy, Reflect,
+      parseInt, parseFloat, isNaN, isFinite, encodeURI, decodeURI,
+      encodeURIComponent, decodeURIComponent, escape, unescape,
+      eval: () => { throw new Error('eval is not allowed') },
+      Function: () => { throw new Error('Function constructor is not allowed') }
+    })
   }
-  
-  if (typeof input === 'object') {
-    // Handle common input formats
-    if (input.nums && input.target !== undefined) {
-      // Two Sum format: [2,7,11,15]\n9
-      return `${JSON.stringify(input.nums)}\n${input.target}`
+
+  return new Function('sandbox', `
+    with (sandbox) {
+      ${code}
     }
-    
-    if (input.s !== undefined) {
-      // String format: "()"
-      return input.s
-    }
-    
-    if (input.nums !== undefined) {
-      // Array format: [1,2,3]
-      return JSON.stringify(input.nums)
-    }
-    
-    // Generic object format
-    return JSON.stringify(input)
-  }
-  
-  return String(input)
+  `)
 }
 
-// Convert expected output to string format for Judge0
-function formatExpectedOutputForJudge0(expected: any, language: string): string {
-  if (typeof expected === 'string') {
-    return expected
-  }
-  
-  if (Array.isArray(expected)) {
-    return JSON.stringify(expected)
-  }
-  
-  if (typeof expected === 'object') {
-    return JSON.stringify(expected)
-  }
-  
-  return String(expected)
+interface TestCase {
+  input: any
+  expected_output: any
 }
 
-// Create test runner code based on language and challenge
-function createTestRunnerCode(
+interface ExecutionResult {
+  passed: boolean
+  input: any
+  expected: any
+  actual: any
+  executionTime: number
+  error?: string
+}
+
+export function executeCode(
   code: string,
   language: string,
   testCase: TestCase,
   challengeTitle: string
-): string {
-  const functionNames = getFunctionNames(challengeTitle)
-  const input = formatInputForJudge0(testCase.input, language)
-  const expectedOutput = formatExpectedOutputForJudge0(testCase.expected_output, language)
+): ExecutionResult {
+  const startTime = performance.now()
   
-  switch (language.toLowerCase()) {
-    case 'javascript':
-    case 'js':
-      return `${code}
-
-// Test runner
-const input = ${JSON.stringify(testCase.input)};
-const expected = ${JSON.stringify(testCase.expected_output)};
-
-// Try to find and execute the main function
-let result;
-let error;
-
-try {
-  ${functionNames.map(name => `
-  if (typeof ${name} === 'function') {
-    result = ${name}(input);
-    console.log(JSON.stringify(result));
-    process.exit(0);
-  }`).join('')}
-  
-  // If no function found, try direct execution
-  result = eval(code);
-  console.log(JSON.stringify(result));
-} catch (e) {
-  console.error(e.message);
-  process.exit(1);
-}`
-
-    case 'python':
-    case 'py':
-      return `${code}
-
-# Test runner
-import json
-import sys
-
-input_data = ${JSON.stringify(testCase.input)}
-expected = ${JSON.stringify(testCase.expected_output)}
-
-try:
-    ${functionNames.map(name => `
-    if '${name}' in globals() and callable(${name}):
-        result = ${name}(input_data)
-        print(json.dumps(result))
-        sys.exit(0)`).join('')}
-    
-    # If no function found, try direct execution
-    result = eval(code)
-    print(json.dumps(result))
-except Exception as e:
-    print(f"Error: {str(e)}", file=sys.stderr)
-    sys.exit(1)`
-
-    case 'java':
-      return `${code}
-
-// Test runner
-import java.util.*;
-
-public class TestRunner {
-    public static void main(String[] args) {
-        try {
-            ${functionNames.map(name => `
-            // Try to call ${name} if it exists
-            // Note: This is a simplified version for Java`).join('')}
-            
-            // For now, just print the expected output
-            System.out.println(${JSON.stringify(testCase.expected_output)});
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            System.exit(1);
-        }
-    }
-}`
-
-    case 'cpp':
-    case 'c++':
-      return `${code}
-
-// Test runner
-#include <iostream>
-#include <string>
-#include <vector>
-
-int main() {
-    try {
-        ${functionNames.map(name => `
-        // Try to call ${name} if it exists
-        // Note: This is a simplified version for C++`).join('')}
-        
-        // For now, just print the expected output
-        std::cout << ${JSON.stringify(testCase.expected_output)} << std::endl;
-    } catch (...) {
-        std::cerr << "Error occurred" << std::endl;
-        return 1;
-    }
-    return 0;
-}`
-
-    default:
-      return `${code}
-
-// Test runner for ${language}
-// Input: ${JSON.stringify(testCase.input)}
-// Expected: ${JSON.stringify(testCase.expected_output)}
-
-// This is a generic test runner - may need language-specific implementation
-console.log(${JSON.stringify(testCase.expected_output)});`
-  }
-}
-
-// Execute code for a specific test case using Judge0
-export async function executeCode(
-  code: string,
-  language: string,
-  testCase: TestCase,
-  challengeTitle: string
-): Promise<ExecutionResult> {
   try {
-    // Validate code for security
-    const validation = Judge0Service.validateCode(code)
-    if (!validation.isValid) {
-      return {
-        passed: false,
-        input: testCase.input,
-        expected: testCase.expected_output,
-        actual: `Security Error: ${validation.error}`,
-        executionTime: 0,
-        error: validation.error
-      }
+    const functionNames = getFunctionNames(challengeTitle)
+    const safeEval = createSafeEnvironment(code, language)
+    
+    // Create sandbox
+    const sandbox = {
+      console: {
+        log: () => {},
+        error: () => {},
+        warn: () => {},
+        info: () => {}
+      },
+      Array, Object, String, Number, Boolean, Date, Math, JSON, RegExp,
+      Map, Set, WeakMap, WeakSet, Promise, Symbol, Proxy, Reflect,
+      parseInt, parseFloat, isNaN, isFinite, encodeURI, decodeURI,
+      encodeURIComponent, decodeURIComponent, escape, unescape,
     }
 
-    // Create test runner code
-    const testRunnerCode = createTestRunnerCode(code, language, testCase, challengeTitle)
+    // Execute the code in sandbox
+    safeEval(sandbox)
     
-    // Execute using Judge0
-    const result = await Judge0Service.executeCode(
-      testRunnerCode,
-      language,
-      formatInputForJudge0(testCase.input, language),
-      formatExpectedOutputForJudge0(testCase.expected_output, language)
-    )
+    // Try to find and execute the main function
+    let actual: any = undefined
+    let error: string | undefined = undefined
     
-    // Parse the actual output
-    let actual: any = result.output
-    try {
-      if (result.output && result.output.trim()) {
-        actual = JSON.parse(result.output.trim())
+    for (const funcName of functionNames) {
+      try {
+        if (typeof sandbox[funcName] === 'function') {
+          // Handle different input formats
+          if (testCase.input.nums !== undefined && testCase.input.target !== undefined) {
+            // Two Sum format
+            actual = sandbox[funcName](testCase.input.nums, testCase.input.target)
+          } else if (testCase.input.s !== undefined) {
+            // String format (like valid parentheses)
+            actual = sandbox[funcName](testCase.input.s)
+          } else if (testCase.input.nums !== undefined) {
+            // Array format (like max subarray)
+            actual = sandbox[funcName](testCase.input.nums)
+          } else {
+            // Generic format
+            actual = sandbox[funcName](testCase.input)
+          }
+          break
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Unknown error'
+        continue
       }
-    } catch {
-      // If JSON parsing fails, use the raw output
-      actual = result.output
     }
+    
+    if (actual === undefined) {
+      error = `No valid function found. Expected one of: ${functionNames.join(', ')}`
+    }
+    
+    const executionTime = performance.now() - startTime
     
     return {
-      passed: result.success,
+      passed: error === undefined && JSON.stringify(actual) === JSON.stringify(testCase.expected_output),
       input: testCase.input,
       expected: testCase.expected_output,
-      actual: result.error ? `Error: ${result.error}` : actual,
-      executionTime: result.executionTime,
-      error: result.error || undefined,
-      memory: result.memory || undefined,
-      status: result.status
+      actual: error ? `Error: ${error}` : actual,
+      executionTime,
+      error
     }
     
   } catch (error) {
+    const executionTime = performance.now() - startTime
+    
     return {
       passed: false,
       input: testCase.input,
       expected: testCase.expected_output,
       actual: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      executionTime: 0,
+      executionTime,
       error: error instanceof Error ? error.message : 'Unknown error'
     }
   }
 }
 
-// Execute all test cases
-export async function executeAllTests(
+export function executeAllTests(
   code: string,
   language: string,
   testCases: TestCase[],
   challengeTitle: string
-): Promise<ExecutionResult[]> {
-  const results: ExecutionResult[] = []
-  
-  for (const testCase of testCases) {
-    const result = await executeCode(code, language, testCase, challengeTitle)
-    results.push(result)
-  }
-  
-  return results
+): ExecutionResult[] {
+  return testCases.map(testCase => 
+    executeCode(code, language, testCase, challengeTitle)
+  )
 }
 
-// Validate code for security (now using Judge0Service)
 export function validateCode(code: string): { isValid: boolean; error?: string } {
-  return Judge0Service.validateCode(code)
+  const dangerousPatterns = [
+    /eval\s*\(/i,
+    /Function\s*\(/i,
+    /setTimeout\s*\(/i,
+    /setInterval\s*\(/i,
+    /fetch\s*\(/i,
+    /XMLHttpRequest/i,
+    /WebSocket/i,
+    /localStorage/i,
+    /sessionStorage/i,
+    /document\./i,
+    /window\./i,
+    /process\./i,
+    /require\s*\(/i,
+    /import\s+/i,
+    /export\s+/i,
+    /__dirname/i,
+    /__filename/i,
+    /global\./i,
+    /Buffer\./i,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(code)) {
+      return {
+        isValid: false,
+        error: `Code contains forbidden pattern: ${pattern.source}`
+      }
+    }
+  }
+
+  // Check for infinite loops (basic check)
+  const loopPatterns = [
+    /while\s*\(\s*true\s*\)/i,
+    /for\s*\(\s*;\s*;\s*\)/i,
+    /for\s*\(\s*.*\s*;\s*.*\s*;\s*\)/i,
+  ]
+
+  for (const pattern of loopPatterns) {
+    if (pattern.test(code)) {
+      return {
+        isValid: false,
+        error: 'Code may contain infinite loops'
+      }
+    }
+  }
+
+  return { isValid: true }
 } 

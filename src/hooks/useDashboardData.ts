@@ -270,10 +270,7 @@ export function useDashboardData() {
 
   // Calculate dashboard stats from student data
   const dashboardStats: DashboardStats = React.useMemo(() => {
-    console.log('Calculating dashboard stats for student:', student)
-    
     if (!student) {
-      console.log('No student data available')
       return {
         studyHours: 0,
         challengesSolved: 0,
@@ -298,7 +295,6 @@ export function useDashboardData() {
       averageScore: Number(student.average_quiz_score) || 0
     }
 
-    console.log('Calculated dashboard stats:', stats)
     return stats
   }, [student])
 

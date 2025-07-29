@@ -46,7 +46,11 @@ A comprehensive coding education platform that combines interactive tutorials, c
 
 ### Backend & Services
 - **Supabase** for authentication, database, and real-time features
+<<<<<<< HEAD
 - **Judge0 API** for code execution and testing (AWS EC2 instance)
+=======
+- **Judge0 API** for code execution and testing
+>>>>>>> 35841fccb2cc81098dbd48eca25437c7170b989b
 - **OpenAI API** for AI-powered features
 - **Supabase Edge Functions** for serverless API endpoints
 
@@ -84,7 +88,11 @@ Comprehensive schema including:
 ### Prerequisites
 - Node.js 18+ and npm
 - Supabase account
+<<<<<<< HEAD
 - Judge0 API access (AWS EC2 instance)
+=======
+- Judge0 API access (RapidAPI)
+>>>>>>> 35841fccb2cc81098dbd48eca25437c7170b989b
 - OpenAI API key (optional, for AI features)
 
 ### Installation
@@ -109,8 +117,13 @@ cp .env.example .env
 ```env
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+<<<<<<< HEAD
 VITE_JUDGE0_URL=http://3.85.134.155:2358
 VITE_JUDGE0_API_KEY=your-judge0-auth-token
+=======
+VITE_JUDGE0_URL=https://judge0-ce.p.rapidapi.com
+VITE_JUDGE0_API_KEY=your-rapidapi-key
+>>>>>>> 35841fccb2cc81098dbd48eca25437c7170b989b
 VITE_OPENAI_API_KEY=your-openai-api-key
 ```
 

@@ -28,6 +28,9 @@ import { ChallengeDetailPage } from './pages/ChallengeDetailPage'
 import { ChallengeSolvingPage } from './pages/ChallengeSolvingPage'
 import { ChatPage } from './pages/ChatPage'
 import { Judge0TestPage } from './pages/Judge0TestPage'
+import { SecurityDebugPage } from './pages/SecurityDebugPage'
+import { FaceDetectionTestPage } from './pages/FaceDetectionTestPage'
+import { AntiCheatingTestPage } from './pages/AntiCheatingTestPage'
 import { FloatingChat } from './components/chat/FloatingChat'
 
 // Create a query client
@@ -255,6 +258,36 @@ function App() {
                   <ProtectedRoute>
                     <Layout>
                       <Judge0TestPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/security-debug"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <SecurityDebugPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/face-detection-test"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <FaceDetectionTestPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/anti-cheating-test"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <AntiCheatingTestPage />
                     </Layout>
                   </ProtectedRoute>
                 }
